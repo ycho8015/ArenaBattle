@@ -28,4 +28,23 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+private:
+	void UpDown(float AxisValue);
+	void LeftRight(float AxisValue);
+
+public:
+	UPROPERTY(VisibleAnywhere, Category=Collision)
+	class UCapsuleComponent* Capsule;
+
+	UPROPERTY(VisibleAnywhere, Category=Visual)
+	class USkeletalMeshComponent* Mesh;
+
+	UPROPERTY(VisibleAnywhere, Category=Movement)
+	class UFloatingPawnMovement* Movement;
+
+	UPROPERTY(VisibleAnywhere, Category=Camera)
+	class USpringArmComponent* SpringArm;
+
+	UPROPERTY(VisibleAnywhere, Category=Camera)
+	class UCameraComponent* Camera;
 };
