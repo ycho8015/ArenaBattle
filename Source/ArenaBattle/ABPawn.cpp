@@ -44,7 +44,7 @@ AABPawn::AABPawn()
 
 	// 스켈레탈 메시 컴포넌트는 자신이 관리하는 캐릭터의 애니메이션을 애님 인스턴스에 위임하는 구조로 설계돼 있다.
 	// 스켈레탈 메시가 애니메이션 블루프린트를 실행시키려면 블루프린트 애셋의 클래스 정보를 애님 인스턴스 속성에 지정해줘야 한다.
-	static ConstructorHelpers::FClassFinder<UAnimInstance> WARRIOR_ANIM(TEXT("AnimBlueprint'/Game/Animations/BP_WarriorAnim.BP_WarriorAnim_C'"));
+	static ConstructorHelpers::FClassFinder<UAnimInstance> WARRIOR_ANIM(TEXT("AnimBlueprint'/Game/Book/Blueprints/BP_WarriorAnim.BP_WarriorAnim_C'"));
 
 	if (WARRIOR_ANIM.Succeeded())
 	{

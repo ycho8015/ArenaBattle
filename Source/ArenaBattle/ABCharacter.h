@@ -42,6 +42,7 @@ protected:
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
+	virtual void PostInitializeComponents() override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
@@ -53,6 +54,13 @@ private:
 	void Turn(float AxisValue);
 
 	void ViewChange();
+	void Attack();
+
+	UFUNCTION()
+	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	void AttackStartComboState();
+	void AttackEndComboState();
 
 public:
 	UPROPERTY(VisibleAnywhere, Category=Camera)
@@ -61,4 +69,22 @@ public:
 	UPROPERTY(VisibleAnywhere, Category=Camera)
 	class UCameraComponent* Camera;
 
+private:
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
+	bool IsAttacking;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
+	bool CanNextCombo;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
+	bool IsComboInputOn;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
+	int32 CurrentCombo;
+
+	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
+	int32 MaxCombo;
+
+	UPROPERTY()
+	class UABAnimInstance* ABAnim;
 };

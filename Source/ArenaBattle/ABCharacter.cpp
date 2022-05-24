@@ -12,7 +12,7 @@
 // Sets default values
 AABCharacter::AABCharacter()
 {
- 	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this character to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("CAMERA"));
@@ -34,7 +34,7 @@ AABCharacter::AABCharacter()
 
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 
-	static ConstructorHelpers::FClassFinder<UAnimInstance> WARRIOR_ANIM(TEXT("AnimBlueprint'/Game/Animations/BP_WarriorAnim.BP_WarriorAnim_C'"));
+	static ConstructorHelpers::FClassFinder<UAnimInstance> WARRIOR_ANIM(TEXT("AnimBlueprint'/Game/Book/Blueprints/BP_WarriorAnim.BP_WarriorAnim_C'"));
 
 	if (WARRIOR_ANIM.Succeeded())
 	{
@@ -46,13 +46,17 @@ AABCharacter::AABCharacter()
 	GetCharacterMovement()->JumpZVelocity = 800.f;
 
 	SetControlMode(EControlMode::GTA);
+
+	IsAttacking = false;
+	MaxCombo = 4;
+	AttackEndComboState();
 }
 
 // Called when the game starts or when spawned
 void AABCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 }
 
 void AABCharacter::SetControlMode(EControlMode ControlMode)
@@ -99,7 +103,7 @@ void AABCharacter::SetControlMode(EControlMode ControlMode)
 void AABCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	
+
 	SpringArm->TargetArmLength = FMath::FInterpTo(SpringArm->TargetArmLength, ArmLengthTo, DeltaTime, ArmLengthSpeed);
 
 	switch (CurrentControlMode)
@@ -122,6 +126,40 @@ void AABCharacter::Tick(float DeltaTime)
 	}
 }
 
+void AABCharacter::PostInitializeComponents()
+{
+	Super::PostInitializeComponents();
+	ABAnim = Cast<UABAnimInstance>(GetMesh()->GetAnimInstance());
+	ABCHECK(nullptr != ABAnim);
+
+	/*
+	Delegate
+	특정 객체가 해야 할 로직을 다른 객체가 대신 처리할 수 있도록 만드는 보편적인 설계의 개념(publish, broadcast)
+	A(캐릭터) 객체가 B(애님 인스턴스) 객체에게 작업 명령을 내릴 떄 B 객체에 A 자신을 등록하고 B의 작업이 끝나면 이때 A에게 알려준다
+	보스 몬스터와 미니언들이 있을 때, 보스 몬스터가 죽을 때 미니언들도 같이 소멸
+
+	Dynamic Delegate : 블루프린트 객체와도 연동하는 델리게이트
+	Multicast Delegate : 여러 함수에 바인딩시켜 동시에 실행시킬수 있는 델리게이트
+
+	언리얼에서 델리게이트는 C++ 객체에만 사용할 수 있는 델리게이트와 C++, 블루프린트 객체가 모두 사용할 수 있는 델리게이트로 나뉜다.
+	블루프린트 오브젝트는 멤버 함수에 대한 정보를 저장하고 로딩하는 직렬화(Serialization) 메커니즘이 들어있기 때문에 일반 C++ 언어가 관리하는
+	방법으로 멤버 함수를 관리 할 수 없다. 그래서 블루프린트와 관련된 C++ 함수는 모두 UFUNCTION 매크로를 사용해야 한다.
+	*/
+	ABAnim->OnMontageEnded.AddDynamic(this, &AABCharacter::OnAttackMontageEnded);
+
+	ABAnim->OnNextAttackCheck.AddLambda([this]() -> void
+		{
+			ABLOG(Warning, TEXT("OnNextAttackCheck"));
+			CanNextCombo = false;
+
+			if (IsComboInputOn)
+			{
+				AttackStartComboState();
+				ABAnim->JumpToAttackMontageSection(CurrentCombo);
+			}
+		});
+}
+
 // Called to bind functionality to input
 void AABCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
@@ -134,6 +172,7 @@ void AABCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 	PlayerInputComponent->BindAction(TEXT("Jump"), EInputEvent::IE_Pressed, this, &ACharacter::Jump);
 	PlayerInputComponent->BindAction(TEXT("ViewChange"), EInputEvent::IE_Pressed, this, &AABCharacter::ViewChange);
+	PlayerInputComponent->BindAction(TEXT("Attack"), EInputEvent::IE_Pressed, this, &AABCharacter::Attack);
 }
 
 void AABCharacter::UpDown(float AxisValue)
@@ -180,7 +219,7 @@ void AABCharacter::Turn(float AxisValue)
 {
 	if (AxisValue == 0.f)
 		return;
-	
+
 	switch (CurrentControlMode)
 	{
 	case EControlMode::GTA:
@@ -202,5 +241,48 @@ void AABCharacter::ViewChange()
 		SetControlMode(EControlMode::GTA);
 		break;
 	}
+}
+
+void AABCharacter::Attack()
+{
+	if (IsAttacking)
+	{
+		ABCHECK(FMath::IsWithinInclusive<int32>(CurrentCombo, 1, MaxCombo));
+		if (CanNextCombo)
+		{
+			IsComboInputOn = true;
+		}
+	}
+	else
+	{
+		ABCHECK(CurrentCombo == 0);
+		AttackStartComboState();
+		ABAnim->PlayAttackMontage();
+		IsAttacking = true;
+	}
+}
+
+// 델리게이트에서 호출할 함수
+void AABCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	ABCHECK(IsAttacking);
+	ABCHECK(CurrentCombo > 0);
+	IsAttacking = false;
+	AttackEndComboState();
+}
+
+void AABCharacter::AttackStartComboState()
+{
+	CanNextCombo = true;
+	IsComboInputOn = false;
+	ABCHECK(FMath::IsWithinInclusive<int32>(CurrentCombo, 0, MaxCombo - 1));
+	CurrentCombo = FMath::Clamp<int32>(CurrentCombo + 1, 1, MaxCombo);
+}
+
+void AABCharacter::AttackEndComboState()
+{
+	IsComboInputOn = false;
+	CanNextCombo = false;
+	CurrentCombo = 0;
 }
 
