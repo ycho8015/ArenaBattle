@@ -48,6 +48,9 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	bool CanSetWeapon();
+	void SetWeapon(class AABWeapon* NewWeapon);
+
 private:
 	void UpDown(float AxisValue);
 	void LeftRight(float AxisValue);
@@ -70,6 +73,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category=Camera)
 	class UCameraComponent* Camera;
+
+	UPROPERTY(VisibleAnywhere, Category=Weapon)
+	class AABWeapon* CurrentWeapon = nullptr;
 
 private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
