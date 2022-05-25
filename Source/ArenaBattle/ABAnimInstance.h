@@ -27,6 +27,8 @@ public:
 	void PlayAttackMontage();
 	void JumpToAttackMontageSection(int32 NewSection);
 
+	void SetDeadAnim() { IsDead = true; }
+
 private:
 	// 몽타주 애니메이션을 재생하면 재생 구간에 위치한 노티파이를 호출하게 되고,
 	// 노티파이가 호출되면 언리얼 엔진은 이를 보고 자동으로 애님 인스턴스 클래스의
@@ -50,6 +52,10 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Pawn)
 	bool IsInAir;
 
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Pawn)
+	bool IsDead;
+
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
 	UAnimMontage* AttackMontage;
+
 };

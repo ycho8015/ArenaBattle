@@ -4,6 +4,7 @@
 #include "ABCharacter.h"
 #include "ABAnimInstance.h"
 
+#include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -50,6 +51,10 @@ AABCharacter::AABCharacter()
 	IsAttacking = false;
 	MaxCombo = 4;
 	AttackEndComboState();
+
+	GetCapsuleComponent()->SetCollisionProfileName(TEXT("ABCharacter"));
+	AttackRange = 200.f;
+	AttackRadius = 50.f;
 }
 
 // Called when the game starts or when spawned
@@ -149,7 +154,7 @@ void AABCharacter::PostInitializeComponents()
 
 	ABAnim->OnNextAttackCheck.AddLambda([this]() -> void
 		{
-			ABLOG(Warning, TEXT("OnNextAttackCheck"));
+			// ABLOG(Warning, TEXT("OnNextAttackCheck"));
 			CanNextCombo = false;
 
 			if (IsComboInputOn)
@@ -158,6 +163,22 @@ void AABCharacter::PostInitializeComponents()
 				ABAnim->JumpToAttackMontageSection(CurrentCombo);
 			}
 		});
+
+	ABAnim->OnAttackHitCheck.AddUObject(this, &AABCharacter::AttackCheck);
+}
+
+float AABCharacter::TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	float FinalDamage = Super::TakeDamage(Damage, DamageEvent, EventInstigator, DamageCauser);
+	ABLOG(Warning, TEXT("Actor : %s took Damage: %f"), *GetName(), FinalDamage);
+
+	if (FinalDamage > 0.f)
+	{
+		ABAnim->SetDeadAnim();
+		SetActorEnableCollision(false);
+	}
+
+	return FinalDamage;
 }
 
 // Called to bind functionality to input
@@ -284,5 +305,49 @@ void AABCharacter::AttackEndComboState()
 	IsComboInputOn = false;
 	CanNextCombo = false;
 	CurrentCombo = 0;
+}
+
+void AABCharacter::AttackCheck()
+{
+	FHitResult HitResult;
+	FCollisionQueryParams Params(NAME_None, false, this);
+	bool bResult = GetWorld()->SweepSingleByChannel(
+		HitResult,												// 물리적 충돌이 탐지된 경우 관련된 정보를 담을 구조체
+		GetActorLocation(),										// 탐색을 시작할 위치
+		GetActorLocation() + GetActorForwardVector() * 200.f,	// 탐색을 끝낼 위치
+		FQuat::Identity,										// 탐색에 사용할 도형의 회전
+		ECollisionChannel::ECC_GameTraceChannel2,				// 물리 충돌 감지에 사용할 트레이스 채널 정보
+		FCollisionShape::MakeSphere(50.f),						// 탐색에 사용할 기본 도형 정보. 구체, 캡슐, 박스를 사용한다.
+		Params);												// 탐색 반응을 설정하기 위한 구조체
+
+#if ENABLE_DRAW_DEBUG
+	FVector TraceVec = GetActorForwardVector() * AttackRange;
+	FVector Center = GetActorLocation() + TraceVec * 0.5f;
+	float HalfHeight = AttackRange * 0.5f + AttackRadius;
+	FQuat CapsuleRot = FRotationMatrix::MakeFromZ(TraceVec).ToQuat();
+	FColor DrawColor = bResult ? FColor::Green : FColor::Red;
+	float DebugLifeTime = 0.5f;
+
+	DrawDebugCapsule(GetWorld(),
+		Center,
+		HalfHeight,
+		AttackRadius,
+		CapsuleRot,
+		DrawColor,
+		false,
+		DebugLifeTime);
+#endif
+
+	if (bResult && HitResult.GetActor())
+	{
+		ABLOG(Warning, TEXT("Hit Actor Name : %s"), *HitResult.GetActor()->GetName());
+
+		FDamageEvent DamageEvent;
+		HitResult.GetActor()->TakeDamage(
+			50.f,				// 대미지 세기
+			DamageEvent,		// 대미지 종류
+			GetController(),	// 공격 명령을 내린 가해자; 가해자는 폰이 아니라 폰에게 명령을 내린 플레이어 컨트롤러이다.
+			this);				// 대미지 전달을 위해 사용된 도구
+	}
 }
 

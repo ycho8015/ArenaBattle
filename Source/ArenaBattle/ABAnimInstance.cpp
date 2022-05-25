@@ -9,6 +9,7 @@ UABAnimInstance::UABAnimInstance()
 {
 	CurrentPawnSpeed = 0.f;
 	IsInAir = false;
+	IsDead = false;
 
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> ATTACK_MONTAGE(TEXT("AnimMontage'/Game/Book/Animations/SK_Mannequin_Skeleton_Montage.SK_Mannequin_Skeleton_Montage'"));
 
@@ -24,7 +25,10 @@ void UABAnimInstance::NativeUpdateAnimation(float DeltaSeconds)
 	Super::NativeUpdateAnimation(DeltaSeconds);
 	
 	auto Pawn = TryGetPawnOwner(); // 애니메이션 시스템을 사용하는 폰 객체를 가져온다.
-	if (IsValid(Pawn))
+	if (!IsValid(Pawn))
+		return;
+
+	if (!IsDead)
 	{
 		CurrentPawnSpeed = Pawn->GetVelocity().Size();
 		auto Character = Cast<ACharacter>(Pawn);
@@ -45,11 +49,13 @@ void UABAnimInstance::PlayAttackMontage()
 
 	// 몽타주 재생이 끝나면 OnMontageEnded 델리게이트 함수를 통해 폰에게 공격이 가능하다고
 	// 알려주기 때문에 위와 같이 몽타주 시스템이 구동 중인지 체크할 필요가 없다.
+	ABCHECK(!IsDead);
 	Montage_Play(AttackMontage);
 }
 
 void UABAnimInstance::JumpToAttackMontageSection(int32 NewSection)
 {
+	ABCHECK(!IsDead);
 	ABCHECK(Montage_IsPlaying(AttackMontage));
 	Montage_JumpToSection(GetAttackMontageSectionName(NewSection), AttackMontage);
 }
