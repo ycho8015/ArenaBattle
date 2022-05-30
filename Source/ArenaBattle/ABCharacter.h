@@ -6,6 +6,8 @@
 #include "GameFramework/Character.h"
 #include "ABCharacter.generated.h"
 
+DECLARE_MULTICAST_DELEGATE(FOnAttackEndDelegate);
+
 // 캐릭터는 폰을 상속받는 액터로 인간형 폰을 좀 더 효과적으로 제작하기 위한 액터이다.
 // 캐릭터 모델이 폰 모델과 다른 점은 캐릭터 무브먼트 컴포넌트를 사용한다.
 // - 중력
@@ -28,8 +30,9 @@ protected:
 	{
 		GTA,
 		DIABLO,
+		NPC,
 	};
-	void SetControlMode(EControlMode ControlMode);
+	void SetControlMode(EControlMode ControlMode = EControlMode::GTA);
 
 	EControlMode CurrentControlMode = EControlMode::GTA;
 	FVector DirectionToMove = FVector::ZeroVector;
@@ -44,12 +47,15 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
 	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+	virtual void PossessedBy(AController* NewController) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	bool CanSetWeapon();
 	void SetWeapon(class AABWeapon* NewWeapon);
+
+	void Attack();
 
 private:
 	void UpDown(float AxisValue);
@@ -58,7 +64,6 @@ private:
 	void Turn(float AxisValue);
 
 	void ViewChange();
-	void Attack();
 
 	UFUNCTION()
 	void OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted);
@@ -107,4 +112,7 @@ private:
 
 	UPROPERTY()
 	class UABAnimInstance* ABAnim;
+
+public:
+	FOnAttackEndDelegate OnAttackEnd;
 };

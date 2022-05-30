@@ -6,6 +6,8 @@
 #include "ABWeapon.h"
 #include "ABCharacterStatComponent.h"
 #include "ABCharacterWidget.h"
+#include "ABAIController.h"
+#include "ABGameInstance.h"
 
 #include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
@@ -51,7 +53,7 @@ AABCharacter::AABCharacter()
 		GetMesh()->SetAnimInstanceClass(WARRIOR_ANIM.Class);
 	}
 
-	SetControlMode(EControlMode::GTA);
+	SetControlMode();
 
 	// Attack
 	ArmLengthSpeed = 3.f;
@@ -75,19 +77,16 @@ AABCharacter::AABCharacter()
 		HPBarWidget->SetWidgetClass(UI_HUD.Class);
 		HPBarWidget->SetDrawSize(FVector2D(150.f, 50.f));
 	}
+
+	// AI
+	AIControllerClass = AABAIController::StaticClass();
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 }
 
 // Called when the game starts or when spawned
 void AABCharacter::BeginPlay()
 {
 	Super::BeginPlay();
-
-	//FName WeaponSocket(TEXT("hand_rSocket"));
-	//CurrentWeapon = GetWorld()->SpawnActor<AABWeapon>(FVector::ZeroVector, FRotator::ZeroRotator);
-	//if (nullptr != CurrentWeapon)
-	//{
-	//	CurrentWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, WeaponSocket);
-	//}
 
 	auto CharacterWidget = Cast<UABCharacterWidget>(HPBarWidget->GetUserWidgetObject());
 	if (nullptr != CharacterWidget)
@@ -105,7 +104,7 @@ void AABCharacter::SetControlMode(EControlMode ControlMode)
 	case EControlMode::GTA:
 		//SpringArm->TargetArmLength = 450.f;
 		//SpringArm->SetRelativeRotation(FRotator::ZeroRotator);
-		ArmLengthTo = 450.f;
+		ArmLengthTo = 600.f;
 		SpringArm->bUsePawnControlRotation = true; // rotate the arm based on the controller
 		SpringArm->bInheritPitch = true;
 		SpringArm->bInheritRoll = true;
@@ -133,6 +132,11 @@ void AABCharacter::SetControlMode(EControlMode ControlMode)
 		GetCharacterMovement()->bUseControllerDesiredRotation = true;
 		GetCharacterMovement()->RotationRate = FRotator(0.f, 720.f, 0.f);
 		break;
+	case EControlMode::NPC:
+		bUseControllerRotationPitch = false;
+		GetCharacterMovement()->bUseControllerDesiredRotation = false;
+		GetCharacterMovement()->bOrientRotationToMovement = true;
+		GetCharacterMovement()->RotationRate = FRotator(0.f, 480.f, 0.f);
 	}
 }
 
@@ -213,6 +217,22 @@ float AABCharacter::TakeDamage(float Damage, struct FDamageEvent const& DamageEv
 
 	CharacterStat->SetDamage(FinalDamage);
 	return FinalDamage;
+}
+
+void AABCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	if (IsPlayerControlled())
+	{
+		SetControlMode(EControlMode::GTA);
+		GetCharacterMovement()->MaxWalkSpeed = 600.f;
+	}
+	else
+	{
+		SetControlMode(EControlMode::NPC);
+		GetCharacterMovement()->MaxWalkSpeed = 300.f;
+	}
 }
 
 // Called to bind functionality to input
@@ -342,6 +362,8 @@ void AABCharacter::OnAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted
 	ABCHECK(CurrentCombo > 0);
 	IsAttacking = false;
 	AttackEndComboState();
+
+	OnAttackEnd.Broadcast();
 }
 
 void AABCharacter::AttackStartComboState()
@@ -402,4 +424,3 @@ void AABCharacter::AttackCheck()
 			this);						// 대미지 전달을 위해 사용된 도구
 	}
 }
-
