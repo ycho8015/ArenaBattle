@@ -15,6 +15,7 @@ DECLARE_DELEGATE_TwoParams(FOnMontageEnded, UAnimMontage*, bool, bInterrupted);
 DECLARE_MULTICAST_DELEGATE(FOnNextAttackCheckDelegate);
 DECLARE_MULTICAST_DELEGATE(FOnAttackHitCheckDelegate);
 
+
 UCLASS()
 class ARENABATTLE_API UABAnimInstance : public UAnimInstance
 {
@@ -58,4 +59,6 @@ private:
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
 	UAnimMontage* AttackMontage;
 
+	UPROPERTY()
+	class AABSection* ABSection;
 };

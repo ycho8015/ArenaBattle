@@ -72,6 +72,8 @@ private:
 	void AttackEndComboState();
 	void AttackCheck();
 
+	void OnAssetLoadCompleted();
+
 public:
 	UPROPERTY(VisibleAnywhere, Category=Camera)
 	class USpringArmComponent* SpringArm;
@@ -87,6 +89,9 @@ public:
 
 	UPROPERTY(VisibleAnywhere, Category=UI)
 	class UWidgetComponent* HPBarWidget;
+
+public:
+	FOnAttackEndDelegate OnAttackEnd;
 
 private:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Meta=(AllowPrivateAccess=true), Category=Attack)
@@ -113,6 +118,7 @@ private:
 	UPROPERTY()
 	class UABAnimInstance* ABAnim;
 
-public:
-	FOnAttackEndDelegate OnAttackEnd;
+private:
+	FSoftObjectPath CharacterAssetToLoad = FSoftObjectPath(nullptr);
+	TSharedPtr<struct FStreamableHandle> AssetStreamingHandle;
 };

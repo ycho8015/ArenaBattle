@@ -7,6 +7,7 @@
 #include "ABCharacterStatComponent.h"
 #include "ABCharacterWidget.h"
 #include "ABAIController.h"
+#include "ABCharacterSetting.h"
 #include "ABGameInstance.h"
 
 #include "DrawDebugHelpers.h"
@@ -20,6 +21,15 @@
 AABCharacter::AABCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
+
+	//auto DefaultSetting = GetDefault<UABCharacterSetting>();
+	//if (DefaultSetting->CharacterAssets.Num() > 0)
+	//{
+	//	for (auto CharacterAsset : DefaultSetting->CharacterAssets)
+	//	{
+	//		ABLOG(Warning, TEXT("Character Asset : %s "), *CharacterAsset.ToString());
+	//	}
+	//}
 
 	// CDO
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
@@ -87,6 +97,21 @@ AABCharacter::AABCharacter()
 void AABCharacter::BeginPlay()
 {
 	Super::BeginPlay();
+
+	// NPC의 스켈레탈 메시 애셋을 비동기로 로딩한다.
+	if (!IsPlayerControlled())
+	{
+		auto DefaultSetting = GetDefault<UABCharacterSetting>();
+		int32 RandIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
+		CharacterAssetToLoad = DefaultSetting->CharacterAssets[RandIndex];
+
+		auto ABGameInstance = Cast<UABGameInstance>(GetGameInstance());
+		if (nullptr != ABGameInstance)
+		{
+			AssetStreamingHandle = ABGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad, FStreamableDelegate::CreateUObject(this, &AABCharacter::OnAssetLoadCompleted));
+		}
+
+	}
 
 	auto CharacterWidget = Cast<UABCharacterWidget>(HPBarWidget->GetUserWidgetObject());
 	if (nullptr != CharacterWidget)
@@ -422,5 +447,15 @@ void AABCharacter::AttackCheck()
 			DamageEvent,				// 대미지 종류
 			GetController(),			// 공격 명령을 내린 가해자; 가해자는 폰이 아니라 폰에게 명령을 내린 플레이어 컨트롤러이다.
 			this);						// 대미지 전달을 위해 사용된 도구
+	}
+}
+
+void AABCharacter::OnAssetLoadCompleted()
+{
+	USkeletalMesh* AssetLoaded = Cast<USkeletalMesh>(AssetStreamingHandle->GetLoadedAsset());
+	AssetStreamingHandle.Reset();
+	if (nullptr != AssetLoaded)
+	{
+		GetMesh()->SetSkeletalMesh(AssetLoaded);
 	}
 }
