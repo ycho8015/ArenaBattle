@@ -28,6 +28,9 @@ public:
 	virtual void OnPossess(APawn* InPawn) override;
 	virtual void OnUnPossess() override;
 
+	void RunAI();
+	void StopAI();
+
 public:
 	static const FName HomePosKey;
 	static const FName PatrolPosKey;

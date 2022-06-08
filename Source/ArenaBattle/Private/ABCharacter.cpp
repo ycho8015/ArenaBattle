@@ -9,6 +9,9 @@
 #include "ABAIController.h"
 #include "ABCharacterSetting.h"
 #include "ABGameInstance.h"
+#include "ABPlayerController.h"
+#include "ABPlayerState.h"
+#include "ABHUDWidget.h"
 
 #include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
@@ -21,15 +24,6 @@
 AABCharacter::AABCharacter()
 {
 	PrimaryActorTick.bCanEverTick = true;
-
-	//auto DefaultSetting = GetDefault<UABCharacterSetting>();
-	//if (DefaultSetting->CharacterAssets.Num() > 0)
-	//{
-	//	for (auto CharacterAsset : DefaultSetting->CharacterAssets)
-	//	{
-	//		ABLOG(Warning, TEXT("Character Asset : %s "), *CharacterAsset.ToString());
-	//	}
-	//}
 
 	// CDO
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("SPRINGARM"));
@@ -50,18 +44,14 @@ AABCharacter::AABCharacter()
 	// Skeletal Mesh
 	static ConstructorHelpers::FObjectFinder<USkeletalMesh> SK_CARDBOARD(TEXT("SkeletalMesh'/Game/InfinityBladeWarriors/Character/CompleteCharacters/SK_CharM_Cardboard.SK_CharM_Cardboard'"));
 	if (SK_CARDBOARD.Succeeded())
-	{
 		GetMesh()->SetSkeletalMesh(SK_CARDBOARD.Object);
-	}
 
 	// Animation
 	GetMesh()->SetAnimationMode(EAnimationMode::AnimationBlueprint);
 
 	static ConstructorHelpers::FClassFinder<UAnimInstance> WARRIOR_ANIM(TEXT("AnimBlueprint'/Game/Book/Blueprints/BP_WarriorAnim.BP_WarriorAnim_C'"));
 	if (WARRIOR_ANIM.Succeeded())
-	{
 		GetMesh()->SetAnimInstanceClass(WARRIOR_ANIM.Class);
-	}
 
 	SetControlMode();
 
@@ -91,6 +81,102 @@ AABCharacter::AABCharacter()
 	// AI
 	AIControllerClass = AABAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
+
+	// 캐릭터 스테이트
+	// PREINIT
+	AssetIndex = 4;
+	SetActorHiddenInGame(true);
+	SetCanBeDamaged(false);
+	HPBarWidget->SetHiddenInGame(true);
+
+	DeadTimer = 1.0f;
+}
+
+void AABCharacter::SetCharacterState(ECharacterState NewState)
+{
+	ABCHECK(CurrentState != NewState);
+	CurrentState = NewState;
+
+	switch (CurrentState)
+	{
+	case ECharacterState::LOADING:
+	{
+		if (bIsPlayer)
+		{
+			DisableInput(ABPlayerController);
+
+			ABPlayerController->GetHUDWidget()->BindCharacterStat(CharacterStat);
+
+			auto ABPlayerState = Cast<AABPlayerState>(GetPlayerState());
+			ABCHECK(nullptr != ABPlayerState);
+			CharacterStat->SetNewLevel(ABPlayerState->GetCharacterLevel());
+		}
+
+		SetActorHiddenInGame(true);
+		HPBarWidget->SetHiddenInGame(true);
+		SetCanBeDamaged(false);
+
+		break;
+	}
+	case ECharacterState::READY:
+	{
+		SetActorHiddenInGame(false);
+		HPBarWidget->SetHiddenInGame(false);
+		SetCanBeDamaged(true);
+
+		if (bIsPlayer)
+		{
+			SetControlMode(EControlMode::GTA);
+			GetCharacterMovement()->MaxWalkSpeed = 600.f;
+			EnableInput(ABPlayerController);
+		}
+		else
+		{
+			SetControlMode(EControlMode::NPC);
+			GetCharacterMovement()->MaxWalkSpeed = 400.f;
+			ABAIController->RunAI();
+		}
+
+		auto CharacterWidget = Cast<UABCharacterWidget>(HPBarWidget->GetUserWidgetObject());
+		ABCHECK(nullptr != CharacterWidget);
+		CharacterWidget->BindCharacterStat(CharacterStat);
+
+		CharacterStat->OnHPIsZero.AddLambda([this]() -> void
+			{
+				SetCharacterState(ECharacterState::DEAD);
+			});
+
+		break;
+	}
+	case ECharacterState::DEAD:
+	{
+		SetActorEnableCollision(false);
+		GetMesh()->SetHiddenInGame(false);
+		HPBarWidget->SetHiddenInGame(true);
+		ABAnim->SetDeadAnim();
+		SetCanBeDamaged(false);
+
+		if (bIsPlayer)
+			DisableInput(ABPlayerController);
+		else
+			ABAIController->StopAI();
+
+		GetWorld()->GetTimerManager().SetTimer(DeadTimerHandle, FTimerDelegate::CreateLambda([this]() -> void
+			{
+				if (bIsPlayer)
+					ABPlayerController->RestartLevel();
+				else
+					Destroy();
+			}), DeadTimer, false);
+
+		break;
+	}
+	}
+}
+
+ECharacterState AABCharacter::GetCharacterState() const
+{
+	return CurrentState;
 }
 
 // Called when the game starts or when spawned
@@ -98,26 +184,32 @@ void AABCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// NPC의 스켈레탈 메시 애셋을 비동기로 로딩한다.
-	if (!IsPlayerControlled())
+	bIsPlayer = IsPlayerControlled();
+	if (bIsPlayer)
 	{
-		auto DefaultSetting = GetDefault<UABCharacterSetting>();
-		int32 RandIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
-		CharacterAssetToLoad = DefaultSetting->CharacterAssets[RandIndex];
-
-		auto ABGameInstance = Cast<UABGameInstance>(GetGameInstance());
-		if (nullptr != ABGameInstance)
-		{
-			AssetStreamingHandle = ABGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad, FStreamableDelegate::CreateUObject(this, &AABCharacter::OnAssetLoadCompleted));
-		}
-
+		ABPlayerController = Cast<AABPlayerController>(GetController());
+		ABCHECK(nullptr != ABPlayerController);
+	}
+	else
+	{
+		ABAIController = Cast<AABAIController>(GetController());
+		ABCHECK(nullptr != ABAIController);
 	}
 
-	auto CharacterWidget = Cast<UABCharacterWidget>(HPBarWidget->GetUserWidgetObject());
-	if (nullptr != CharacterWidget)
-	{
-		CharacterWidget->BindCharacterStat(CharacterStat);
-	}
+	auto DefaultSetting = GetDefault<UABCharacterSetting>();
+
+	if (bIsPlayer)
+		AssetIndex = 4;
+	else
+		AssetIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
+
+	// 스켈레탈 메시 애셋을 비동기로 로딩한다.
+	CharacterAssetToLoad = DefaultSetting->CharacterAssets[AssetIndex];
+	auto ABGameInstance = Cast<UABGameInstance>(GetGameInstance());
+	ABCHECK(nullptr != ABGameInstance);
+	AssetStreamingHandle = ABGameInstance->StreamableManager.RequestAsyncLoad(CharacterAssetToLoad,
+		FStreamableDelegate::CreateUObject(this, &AABCharacter::OnAssetLoadCompleted));
+	SetCharacterState(ECharacterState::LOADING);
 }
 
 void AABCharacter::SetControlMode(EControlMode ControlMode)
@@ -215,7 +307,6 @@ void AABCharacter::PostInitializeComponents()
 
 	ABAnim->OnNextAttackCheck.AddLambda([this]() -> void
 		{
-			// ABLOG(Warning, TEXT("OnNextAttackCheck"));
 			CanNextCombo = false;
 
 			if (IsComboInputOn)
@@ -241,23 +332,15 @@ float AABCharacter::TakeDamage(float Damage, struct FDamageEvent const& DamageEv
 	ABLOG(Warning, TEXT("Actor : %s took Damage: %f"), *GetName(), FinalDamage);
 
 	CharacterStat->SetDamage(FinalDamage);
+	if (CurrentState == ECharacterState::DEAD)
+	{
+		if (EventInstigator->IsPlayerController())
+		{
+			ABPlayerController = Cast<AABPlayerController>(EventInstigator);
+			ABPlayerController->NPCKill(this);
+		}
+	}
 	return FinalDamage;
-}
-
-void AABCharacter::PossessedBy(AController* NewController)
-{
-	Super::PossessedBy(NewController);
-
-	if (IsPlayerControlled())
-	{
-		SetControlMode(EControlMode::GTA);
-		GetCharacterMovement()->MaxWalkSpeed = 600.f;
-	}
-	else
-	{
-		SetControlMode(EControlMode::NPC);
-		GetCharacterMovement()->MaxWalkSpeed = 300.f;
-	}
 }
 
 // Called to bind functionality to input
@@ -367,9 +450,7 @@ void AABCharacter::Attack()
 	{
 		ABCHECK(FMath::IsWithinInclusive<int32>(CurrentCombo, 1, MaxCombo));
 		if (CanNextCombo)
-		{
 			IsComboInputOn = true;
-		}
 	}
 	else
 	{
@@ -378,6 +459,11 @@ void AABCharacter::Attack()
 		ABAnim->PlayAttackMontage();
 		IsAttacking = true;
 	}
+}
+
+int32 AABCharacter::GetExp() const
+{
+	return CharacterStat->GetDropExp();
 }
 
 // 델리게이트에서 호출할 함수
@@ -454,8 +540,8 @@ void AABCharacter::OnAssetLoadCompleted()
 {
 	USkeletalMesh* AssetLoaded = Cast<USkeletalMesh>(AssetStreamingHandle->GetLoadedAsset());
 	AssetStreamingHandle.Reset();
-	if (nullptr != AssetLoaded)
-	{
-		GetMesh()->SetSkeletalMesh(AssetLoaded);
-	}
+	ABCHECK(nullptr != AssetLoaded);
+	GetMesh()->SetSkeletalMesh(AssetLoaded);
+
+	SetCharacterState(ECharacterState::READY);
 }

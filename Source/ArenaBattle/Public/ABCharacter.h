@@ -19,11 +19,13 @@ class ARENABATTLE_API AABCharacter : public ACharacter
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this character's properties
 	AABCharacter();
 
+	// 캐릭터 스테이트 설정
+	void SetCharacterState(ECharacterState NewState);
+	ECharacterState GetCharacterState() const;
+
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 	enum class EControlMode
@@ -43,19 +45,17 @@ protected:
 	float ArmRotationSpeed = 0.f;
 
 public:	
-	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 	virtual void PostInitializeComponents() override;
-	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
-	virtual void PossessedBy(AController* NewController) override;
 
-	// Called to bind functionality to input
+	virtual float TakeDamage(float Damage, struct FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	bool CanSetWeapon();
 	void SetWeapon(class AABWeapon* NewWeapon);
 
 	void Attack();
+	int32 GetExp() const;
 
 private:
 	void UpDown(float AxisValue);
@@ -117,6 +117,25 @@ private:
 
 	UPROPERTY()
 	class UABAnimInstance* ABAnim;
+
+private:
+	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category=State, Meta=(AllowPrivateAccess=true))
+	ECharacterState CurrentState;
+
+	UPROPERTY(Transient, VisibleInstanceOnly, BlueprintReadOnly, Category=State, Meta=(AllowPrivateAccess=true))
+	bool bIsPlayer;
+
+	UPROPERTY()
+	class AABAIController* ABAIController;
+
+	UPROPERTY()
+	class AABPlayerController* ABPlayerController;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=State, Meta=(AllowPrivateAccess=true))
+	float DeadTimer;
+
+	int32 AssetIndex = 0;
+	FTimerHandle DeadTimerHandle = {};
 
 private:
 	FSoftObjectPath CharacterAssetToLoad = FSoftObjectPath(nullptr);
