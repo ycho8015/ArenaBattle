@@ -24,9 +24,12 @@ protected:
 	virtual void InitializeComponent() override;
 
 public:
+	void BindPlayerState(class AABPlayerState* PlayerState);
+
 	void SetNewLevel(int32 Level);
 	void SetDamage(float Damage);
 	void SetHP(float NewHP);
+
 	float GetAttack();
 	float GetHPRatio();
 	int32 GetDropExp() const;
@@ -47,4 +50,6 @@ private:
 	// 이러한 속성에는 Transient 키워드를 추가해 해당 속성을 직렬화에서 제외시키는 것이 좋다.
 	UPROPERTY(Transient, VisibleInstanceOnly, Meta=(AllowPrivateAccess=true), Category=Stat)
 	float CurrentHP;
+
+	TWeakObjectPtr<class AABPlayerState> CurrentPlayerState;
 };

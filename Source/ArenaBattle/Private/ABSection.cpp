@@ -67,14 +67,14 @@ AABSection::AABSection()
 	bNoBattle = false;
 
 	EnemySpawnTime = 2.0f;
-	ItemBoxSpawnTime = 5.0f;
+	ItemBoxSpawnTime = 3.0f;
 }
 
 // 에디터 작업에서 속성이나 트랜스폼 정보가 변경되면 이 함수가 실행된다.
 void AABSection::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	SetState(bNoBattle ? ESectionState::COMPLETED : ESectionState::READY);
+	SetState(bNoBattle ? ESectionState::BATTLE : ESectionState::READY);
 }
 
 // Called when the game starts or when spawned
@@ -82,7 +82,6 @@ void AABSection::BeginPlay()
 {
 	Super::BeginPlay();
 
-	//SetState(ESectionState::BATTLE);
 	SetState(bNoBattle ? ESectionState::COMPLETED : ESectionState::READY);
 }
 
@@ -95,7 +94,7 @@ void AABSection::SetState(ESectionState NewState)
 		Trigger->SetCollisionProfileName(TEXT("ABTrigger"));
 		for (UBoxComponent* GateTrigger : GateTriggers)
 		{
-			GateTrigger->SetCollisionProfileName(TEXT("NoCollision"));
+			GateTrigger->SetCollisionProfileName(TEXT("ABTrigger"));
 		}
 		OperateGates(true);
 		break;
@@ -113,7 +112,10 @@ void AABSection::SetState(ESectionState NewState)
 		GetWorld()->GetTimerManager().SetTimer(SpawnItemBoxTimerHandle, FTimerDelegate::CreateLambda([this]() -> void
 			{
 				FVector2D RandXY = FMath::RandPointInCircle(600.f);
-				GetWorld()->SpawnActor<AABItemBox>(GetActorLocation() + FVector(RandXY, 30.f), FRotator::ZeroRotator);
+				GetWorld()->SpawnActor<AABItemBox>(GetActorLocation() + FVector(RandXY, 15.f), FRotator::ZeroRotator);
+
+				RandXY = FMath::RandPointInCircle(600.f);
+				GetWorld()->SpawnActor<AABItemBox>(GetActorLocation() + FVector(RandXY, 15.f), FRotator::ZeroRotator);
 			}), ItemBoxSpawnTime, false);
 
 		break;

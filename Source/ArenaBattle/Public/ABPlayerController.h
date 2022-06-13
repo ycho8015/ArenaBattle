@@ -21,10 +21,12 @@ public:
 
 	virtual void PostInitializeComponents() override;
 	virtual void OnPossess(APawn* aPawn) override;
-
+	virtual void SetupInputComponent() override;
 	virtual void RestartLevel() override;
 
 	class UABHUDWidget* GetHUDWidget() const;
+	void ChangeInputMode(bool bGameMode = true);
+	void ShowResultUI();
 
 	void NPCKill(class AABCharacter* KilledNPC) const;
 	void AddGameScore() const;
@@ -32,13 +34,31 @@ public:
 protected:
 	virtual void BeginPlay() override;
 
+	void OnGamePause();
+
+protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category=UI)
 	TSubclassOf<class UABHUDWidget> HUDWidgetClass;
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category=UI)
+	TSubclassOf<class UABGameplayWidget> MenuWidgetClass;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category=UI)
+	TSubclassOf<class UABGameplayResultWidget> ResultWidgetClass;
+
 private:
+	UPROPERTY()
+	class AABPlayerState* ABPlayerState;
+
 	UPROPERTY()
 	class UABHUDWidget* HUDWidget;
 
 	UPROPERTY()
-	class AABPlayerState* ABPlayerState;
+	class UABGameplayWidget* MenuWidget;
+
+	UPROPERTY()
+	class UABGameplayResultWidget* ResultWidget;
+
+	FInputModeGameOnly GameInputMode;
+	FInputModeUIOnly UIInputMode;
 };

@@ -55,6 +55,9 @@ public:
 	void SetWeapon(class AABWeapon* NewWeapon);
 
 	void Attack();
+	float GetFinalAttackRange() const;
+	float GetFinalAttackDamage() const;
+
 	int32 GetExp() const;
 
 private:

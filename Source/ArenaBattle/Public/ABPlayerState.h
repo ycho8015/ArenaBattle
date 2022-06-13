@@ -7,6 +7,8 @@
 #include "ABPlayerState.generated.h"
 
 DECLARE_MULTICAST_DELEGATE(FOnPlayerStateChangedDelegate);
+DECLARE_MULTICAST_DELEGATE_OneParam(FOnPlayerLevelChangedDelegate, int32);
+
 /**
  * 
  */
@@ -18,24 +20,35 @@ class ARENABATTLE_API AABPlayerState : public APlayerState
 public:
 	AABPlayerState();
 
-	int32 GetGameScore() const;
+	int32 GetCurrentGameScore() const;
+	int32 GetHighestGameScore() const;
 	int32 GetCharacterLevel() const;
+	int32 GetCharacterIndex() const;
 	float GetExpRatio() const;
 
 	bool AddExp(int32 IncomeExp);
 	void AddGameScore();
 
 	void InitPlayerData();
+	void SavePlayerData();
 
 private:
 	void SetCharacterLevel(int32 NewCharacterLevel);
 
 public:
 	FOnPlayerStateChangedDelegate OnPlayerStateChanged;
+	FOnPlayerLevelChangedDelegate OnPlayerLevelChanged;
+	FString SaveSlotName;
 
 protected:
 	UPROPERTY(Transient)
-	int32 GameScore;
+	int32 CurrentGameScore;
+
+	UPROPERTY(Transient)
+	int32 HighestGameScore;
+
+	UPROPERTY(Transient)
+	int32 CharacterIndex;
 
 	UPROPERTY(Transient)
 	int32 CharacterLevel;

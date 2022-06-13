@@ -3,21 +3,38 @@
 
 #include "ABPlayerState.h"
 #include "ABGameInstance.h"
+#include "ABSaveGame.h"
+
+#include "Kismet/GameplayStatics.h"
 
 AABPlayerState::AABPlayerState()
 {
+	CharacterIndex = 0;
 	CharacterLevel = 1;
-	GameScore = 0;
+	CurrentGameScore = 0;
+	HighestGameScore = 0;
+	Exp = 0;
+	SaveSlotName = TEXT("Player1");
 }
 
-int32 AABPlayerState::GetGameScore() const
+int32 AABPlayerState::GetCurrentGameScore() const
 {
-	return GameScore;
+	return CurrentGameScore;
+}
+
+int32 AABPlayerState::GetHighestGameScore() const
+{
+	return HighestGameScore;
 }
 
 int32 AABPlayerState::GetCharacterLevel() const
 {
 	return CharacterLevel;
+}
+
+int32 AABPlayerState::GetCharacterIndex() const
+{
+	return CharacterIndex;
 }
 
 float AABPlayerState::GetExpRatio() const
@@ -46,21 +63,50 @@ bool AABPlayerState::AddExp(int32 IncomeExp)
 	}
 
 	OnPlayerStateChanged.Broadcast();
+	SavePlayerData();
+
 	return DidLevelUp;
 }
 
 void AABPlayerState::AddGameScore()
 {
-	GameScore++;
+	CurrentGameScore++;
+	if (CurrentGameScore >= HighestGameScore)
+		HighestGameScore = CurrentGameScore;
+
 	OnPlayerStateChanged.Broadcast();
+	SavePlayerData();
 }
 
 void AABPlayerState::InitPlayerData()
 {
-	SetPlayerName(TEXT("aaa"));
-	SetCharacterLevel(5);
-	GameScore = 0;
-	Exp = 0;
+	auto ABSaveGame = Cast<UABSaveGame>(UGameplayStatics::LoadGameFromSlot(SaveSlotName, 0));
+	if (nullptr == ABSaveGame)
+		ABSaveGame = GetMutableDefault<UABSaveGame>();
+
+	SetPlayerName(ABSaveGame->PlayerName);
+	SetCharacterLevel(ABSaveGame->Level);
+	CharacterIndex = 0;
+	CurrentGameScore = 0;
+	HighestGameScore = ABSaveGame->HighestScore;
+	Exp = ABSaveGame->Exp;
+
+	SavePlayerData();
+}
+
+void AABPlayerState::SavePlayerData()
+{
+	UABSaveGame* NewPlayerData = NewObject<UABSaveGame>();
+	NewPlayerData->PlayerName = GetPlayerName();
+	NewPlayerData->Level = CharacterLevel;
+	NewPlayerData->Exp = Exp;
+	NewPlayerData->HighestScore = HighestGameScore;
+	NewPlayerData->CharacterIndex = CharacterIndex;
+
+	if (!UGameplayStatics::SaveGameToSlot(NewPlayerData, SaveSlotName, 0))
+	{
+		ABLOG(Error, TEXT("SaveGame Error!"));
+	}
 }
 
 void AABPlayerState::SetCharacterLevel(int32 NewCharacterLevel)
@@ -72,4 +118,6 @@ void AABPlayerState::SetCharacterLevel(int32 NewCharacterLevel)
 	ABCHECK(nullptr != CurrentStatData);
 
 	CharacterLevel = NewCharacterLevel;
+
+	OnPlayerLevelChanged.Broadcast(CharacterLevel);
 }

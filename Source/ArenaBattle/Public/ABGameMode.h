@@ -27,9 +27,16 @@ public:
 	
 	virtual void PostInitializeComponents() override;
 	virtual void PostLogin(APlayerController* NewPlayer) override;
+
 	void AddScore(class AABPlayerController* ScoredPlayer);
+	int32 GetScore() const;
+
+	void EndGame();
 
 private:
 	UPROPERTY()
 	class AABGameState* ABGameState;
+
+	UPROPERTY()
+	int32 ScoreToClear;
 };

@@ -2,6 +2,7 @@
 
 
 #include "ABWeapon.h"
+#include "ABCharacter.h"
 
 // Sets default values
 AABWeapon::AABWeapon()
@@ -17,20 +18,34 @@ AABWeapon::AABWeapon()
 	{
 		Weapon->SetSkeletalMesh(SK_WEAPON.Object);
 	}
-	
+
+	AttackRange = 150.f;
+	AttackDamageMin = -2.5f;
+	AttackDamageMax = 10.f;
+	AttackModifierMin = 0.85f;
+	AttackModifierMax = 1.25f;
+}
+
+float AABWeapon::GetAttackRange() const
+{
+	return AttackRange;
+}
+
+float AABWeapon::GetAttackDamage() const
+{
+	return AttackDamage;
+}
+
+float AABWeapon::GetAttackModifier() const
+{
+	return AttackModifier;
 }
 
 // Called when the game starts or when spawned
 void AABWeapon::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	AttackDamage = FMath::RandRange(AttackDamageMin, AttackDamageMax);
+	AttackModifier = FMath::RandRange(AttackModifierMin, AttackModifierMax);
 }
-
-// Called every frame
-void AABWeapon::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-}
-

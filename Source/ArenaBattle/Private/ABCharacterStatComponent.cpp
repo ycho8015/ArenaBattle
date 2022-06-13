@@ -3,6 +3,7 @@
 
 #include "ABCharacterStatComponent.h"
 #include "ABGameInstance.h"
+#include "ABPlayerState.h"
 
 #include "Kismet/GameplayStatics.h"
 
@@ -13,7 +14,6 @@ UABCharacterStatComponent::UABCharacterStatComponent()
 	
 	Level = 1;
 }
-
 
 // Called when the game starts
 void UABCharacterStatComponent::BeginPlay()
@@ -29,6 +29,13 @@ void UABCharacterStatComponent::InitializeComponent()
 {
 	Super::InitializeComponent();
 	SetNewLevel(Level);
+}
+
+void UABCharacterStatComponent::BindPlayerState(class AABPlayerState* PlayerState)
+{
+	ABCHECK(nullptr != PlayerState);
+	CurrentPlayerState = PlayerState;
+	PlayerState->OnPlayerLevelChanged.AddUObject(this, &UABCharacterStatComponent::SetNewLevel);
 }
 
 void UABCharacterStatComponent::SetNewLevel(int32 NewLevel)

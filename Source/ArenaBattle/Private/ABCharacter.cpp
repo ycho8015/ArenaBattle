@@ -12,6 +12,7 @@
 #include "ABPlayerController.h"
 #include "ABPlayerState.h"
 #include "ABHUDWidget.h"
+#include "ABGameMode.h"
 
 #include "DrawDebugHelpers.h"
 #include "Camera/CameraComponent.h"
@@ -65,7 +66,7 @@ AABCharacter::AABCharacter()
 	AttackEndComboState();
 
 	GetCapsuleComponent()->SetCollisionProfileName(TEXT("ABCharacter"));
-	AttackRange = 200.f;
+	AttackRange = 80.f;
 	AttackRadius = 50.f;
 
 	// HP UI
@@ -109,7 +110,18 @@ void AABCharacter::SetCharacterState(ECharacterState NewState)
 
 			auto ABPlayerState = Cast<AABPlayerState>(GetPlayerState());
 			ABCHECK(nullptr != ABPlayerState);
+			CharacterStat->BindPlayerState(ABPlayerState);
 			CharacterStat->SetNewLevel(ABPlayerState->GetCharacterLevel());
+		}
+		else
+		{
+			auto ABGameMode = Cast<AABGameMode>(GetWorld()->GetAuthGameMode());
+			ABCHECK(nullptr != ABGameMode);
+
+			int32 TargetLevel = FMath::CeilToInt((float)ABGameMode->GetScore() * 0.7f);
+			int32 FinalLevel = FMath::Clamp<int32>(TargetLevel, 1, 20);
+			ABLOG(Warning, TEXT("NPC Level : %d"), FinalLevel);
+			CharacterStat->SetNewLevel(FinalLevel);
 		}
 
 		SetActorHiddenInGame(true);
@@ -164,11 +176,11 @@ void AABCharacter::SetCharacterState(ECharacterState NewState)
 		GetWorld()->GetTimerManager().SetTimer(DeadTimerHandle, FTimerDelegate::CreateLambda([this]() -> void
 			{
 				if (bIsPlayer)
-					ABPlayerController->RestartLevel();
+					ABPlayerController->ShowResultUI();
 				else
 					Destroy();
 			}), DeadTimer, false);
-
+		
 		break;
 	}
 	}
@@ -199,7 +211,11 @@ void AABCharacter::BeginPlay()
 	auto DefaultSetting = GetDefault<UABCharacterSetting>();
 
 	if (bIsPlayer)
-		AssetIndex = 4;
+	{
+		auto ABPlayerState = GetDefault<AABPlayerState>();
+		ABCHECK(nullptr != ABPlayerState);
+		AssetIndex = ABPlayerState->GetCharacterIndex();
+	}
 	else
 		AssetIndex = FMath::RandRange(0, DefaultSetting->CharacterAssets.Num() - 1);
 
@@ -282,6 +298,8 @@ void AABCharacter::Tick(float DeltaTime)
 		}
 		break;
 	}
+
+
 }
 
 void AABCharacter::PostInitializeComponents()
@@ -360,13 +378,20 @@ void AABCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 
 bool AABCharacter::CanSetWeapon()
 {
-	return (nullptr == CurrentWeapon);
+	return true;
 }
 
 void AABCharacter::SetWeapon(AABWeapon* NewWeapon)
 {
-	ABCHECK(nullptr != NewWeapon && nullptr == CurrentWeapon);
-	
+	ABCHECK(nullptr != NewWeapon);
+
+	if (nullptr != CurrentWeapon)
+	{
+		CurrentWeapon->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+		//CurrentWeapon->Destroy();
+		CurrentWeapon = nullptr;
+	}
+
 	FName WeaponSocket(TEXT("hand_rSocket"));
 	if (nullptr != NewWeapon)
 	{
@@ -461,6 +486,30 @@ void AABCharacter::Attack()
 	}
 }
 
+float AABCharacter::GetFinalAttackRange() const
+{
+	return (nullptr != CurrentWeapon) ? CurrentWeapon->GetAttackRange() : AttackRange;
+}
+
+float AABCharacter::GetFinalAttackDamage() const
+{
+	float AttackDamage = (nullptr != CurrentWeapon)
+		? (CharacterStat->GetAttack() + CurrentWeapon->GetAttackDamage()) 
+		: CharacterStat->GetAttack();
+
+	float AttackModifier = (nullptr != CurrentWeapon) ? CurrentWeapon->GetAttackModifier() : 1.0f;
+
+	if (nullptr != ABPlayerController)
+	{
+		AttackDamage += 5.f;
+		AttackModifier = FMath::Clamp<float>(AttackModifier, 1.f, 1.25f);
+
+		// ABLOG(Warning, TEXT("Weapon Damage : %f, Modifier : %f"), AttackDamage, AttackModifier);
+	}
+	
+	return AttackDamage * AttackModifier;
+}
+
 int32 AABCharacter::GetExp() const
 {
 	return CharacterStat->GetDropExp();
@@ -494,21 +543,22 @@ void AABCharacter::AttackEndComboState()
 
 void AABCharacter::AttackCheck()
 {
+	float FinalAttackRange = GetFinalAttackRange();
 	FHitResult HitResult;
 	FCollisionQueryParams Params(NAME_None, false, this);
 	bool bResult = GetWorld()->SweepSingleByChannel(
-		HitResult,												// 물리적 충돌이 탐지된 경우 관련된 정보를 담을 구조체
-		GetActorLocation(),										// 탐색을 시작할 위치
-		GetActorLocation() + GetActorForwardVector() * 200.f,	// 탐색을 끝낼 위치
-		FQuat::Identity,										// 탐색에 사용할 도형의 회전
-		ECollisionChannel::ECC_GameTraceChannel2,				// 물리 충돌 감지에 사용할 트레이스 채널 정보
-		FCollisionShape::MakeSphere(50.f),						// 탐색에 사용할 기본 도형 정보. 구체, 캡슐, 박스를 사용한다.
-		Params);												// 탐색 반응을 설정하기 위한 구조체
+		HitResult,															// 물리적 충돌이 탐지된 경우 관련된 정보를 담을 구조체
+		GetActorLocation(),													// 탐색을 시작할 위치
+		GetActorLocation() + GetActorForwardVector() * FinalAttackRange,	// 탐색을 끝낼 위치
+		FQuat::Identity,													// 탐색에 사용할 도형의 회전
+		ECollisionChannel::ECC_GameTraceChannel2,							// 물리 충돌 감지에 사용할 트레이스 채널 정보
+		FCollisionShape::MakeSphere(50.f),									// 탐색에 사용할 기본 도형 정보. 구체, 캡슐, 박스를 사용한다.
+		Params);															// 탐색 반응을 설정하기 위한 구조체
 
 #if ENABLE_DRAW_DEBUG
-	FVector TraceVec = GetActorForwardVector() * AttackRange;
+	FVector TraceVec = GetActorForwardVector() * FinalAttackRange;
 	FVector Center = GetActorLocation() + TraceVec * 0.5f;
-	float HalfHeight = AttackRange * 0.5f + AttackRadius;
+	float HalfHeight = FinalAttackRange * 0.5f + AttackRadius;
 	FQuat CapsuleRot = FRotationMatrix::MakeFromZ(TraceVec).ToQuat();
 	FColor DrawColor = bResult ? FColor::Green : FColor::Red;
 	float DebugLifeTime = 0.5f;
@@ -529,7 +579,7 @@ void AABCharacter::AttackCheck()
 
 		FDamageEvent DamageEvent;
 		HitResult.GetActor()->TakeDamage(
-			CharacterStat->GetAttack(),	// 대미지 세기
+			GetFinalAttackDamage(),		// 대미지 세기
 			DamageEvent,				// 대미지 종류
 			GetController(),			// 공격 명령을 내린 가해자; 가해자는 폰이 아니라 폰에게 명령을 내린 플레이어 컨트롤러이다.
 			this);						// 대미지 전달을 위해 사용된 도구

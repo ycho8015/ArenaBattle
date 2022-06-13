@@ -44,5 +44,5 @@ private:
 	class UTextBlock* CurrentScore;
 
 	UPROPERTY()
-	class UTextBlock* HighScore;
+	class UTextBlock* HighestScore;
 };

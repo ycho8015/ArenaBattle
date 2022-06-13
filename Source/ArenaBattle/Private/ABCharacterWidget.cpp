@@ -14,6 +14,7 @@ void UABCharacterWidget::BindCharacterStat(UABCharacterStatComponent* NewCharact
 	NewCharacterStat->OnHPChanged.AddUObject(this, &UABCharacterWidget::UpdateHPWidget);
 }
 
+// BeginPlay()
 void UABCharacterWidget::NativeConstruct()
 {
 	Super::NativeConstruct();
